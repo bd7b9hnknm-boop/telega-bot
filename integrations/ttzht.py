@@ -19,6 +19,7 @@ from typing import Optional
 import aiohttp
 from bs4 import BeautifulSoup
 
+from config import SCHEDULE_PROXY
 
 SOURCE_URL = "https://www.ttgdt.stu.ru/students/zam"
 
@@ -223,7 +224,7 @@ async def fetch_html(retries: int = 3) -> tuple[Optional[str], Optional[str]]:
                 async with aiohttp.ClientSession(
                     timeout=timeout, headers=HEADERS, connector=connector
                 ) as s:
-                    async with s.get(SOURCE_URL) as r:
+                    async with s.get(SOURCE_URL, proxy=SCHEDULE_PROXY) as r:
                         body = await r.text(encoding="utf-8", errors="ignore")
                         if r.status == 200 and body:
                             return body, None

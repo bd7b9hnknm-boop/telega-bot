@@ -24,3 +24,8 @@ CRYPTOBOT_TESTNET = os.getenv("CRYPTOBOT_TESTNET", "0") == "1"
 
 # Часовой пояс для расписания воспитателей (UTC+7 для Томска)
 TZ_OFFSET_HOURS = int(os.getenv("TZ_OFFSET_HOURS", "7"))
+
+# HTTP-прокси для запросов к сайту ТТЖТ (геоблок на иностранных хостингах).
+# Формат: "http://user:pass@host:port" или "http://host:port".
+# Если не задан — бот идёт напрямую.
+SCHEDULE_PROXY = os.getenv("SCHEDULE_PROXY", "").strip() or None
