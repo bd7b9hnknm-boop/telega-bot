@@ -1,4 +1,4 @@
-# Точка входа: настройка бота, регистрация роутеров, запуск polling
+# Точка входа
 import asyncio
 import logging
 import sys
@@ -8,31 +8,33 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
-    BotCommand,
-    BotCommandScopeDefault,
-    BotCommandScopeChat,
+    BotCommand, BotCommandScopeDefault, BotCommandScopeChat,
     LinkPreviewOptions,
 )
 
 from config import BOT_TOKEN, ADMIN_ID
 from database import init_db
-from handlers import start, catalog, order, my_orders, admin, common
+from middlewares.access import AccessMiddleware
+from handlers import (
+    onboarding, start, catalog, order, my_orders,
+    support, admin, admin_panel, common,
+)
 
 
 async def setup_commands(bot: Bot) -> None:
-    """Меню команд в синей кнопке слева от поля ввода."""
     user_cmds = [
         BotCommand(command="start",  description="🏠 Главное меню"),
-        BotCommand(command="menu",   description="📋 Открыть меню"),
-        BotCommand(command="cancel", description="❌ Отменить действие"),
+        BotCommand(command="menu",   description="📋 Меню"),
+        BotCommand(command="cancel", description="❌ Отменить"),
         BotCommand(command="help",   description="ℹ️ Справка"),
     ]
     await bot.set_my_commands(user_cmds, scope=BotCommandScopeDefault())
 
-    # Расширенный набор только для администратора
     admin_cmds = user_cmds + [
+        BotCommand(command="panel", description="🛠 Админ-панель"),
         BotCommand(command="stats", description="📊 Статистика"),
-        BotCommand(command="admin", description="🛠 Панель администратора"),
+        BotCommand(command="reply", description="💬 Ответить клиенту по id"),
+        BotCommand(command="stop",  description="🛑 Выйти из режима ответа"),
     ]
     try:
         await bot.set_my_commands(admin_cmds, scope=BotCommandScopeChat(chat_id=ADMIN_ID))
@@ -46,11 +48,9 @@ async def main() -> None:
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
         stream=sys.stdout,
     )
-
     if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN не задан. Укажи переменную окружения.")
+        raise RuntimeError("BOT_TOKEN не задан. Укажи переменную окружения в Railway → Variables.")
 
-    # HTML по умолчанию + отключённое превью ссылок (чище выглядит)
     bot = Bot(
         token=BOT_TOKEN,
         default=DefaultBotProperties(
@@ -60,11 +60,16 @@ async def main() -> None:
     )
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Порядок роутеров важен:
-    # 1) admin — раньше всех, т.к. админ-callback'и нужно отлавливать первыми
-    # 2) start, catalog, order, my_orders — основная логика
-    # 3) common — фолбэк в самом конце
+    # Глобальный middleware: регистрация пользователя + блокировка ЧС
+    dp.update.outer_middleware(AccessMiddleware())
+
+    # Порядок роутеров: админские раньше пользовательских,
+    # support раньше order (FSM SupportForm/AdminReply нужно отлавливать первыми),
+    # common — самый последний (фолбэк).
+    dp.include_router(admin_panel.router)
     dp.include_router(admin.router)
+    dp.include_router(support.router)
+    dp.include_router(onboarding.router)
     dp.include_router(start.router)
     dp.include_router(catalog.router)
     dp.include_router(order.router)
