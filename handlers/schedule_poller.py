@@ -85,39 +85,35 @@ async def _safe_get_text(key: str, lang: str) -> str:
     return await get_text(key, lang)
 
 
-async def check_once(bot: Bot, force_broadcast: bool = False) -> dict:
-    """Один цикл проверки. Возвращает краткую статистику."""
-    days = await ttzht.fetch_and_parse()
+async def check_once(bot: Bot, force_save: bool = False,
+                     skip_broadcast: bool = False) -> dict:
+    """Один цикл проверки.
+    - force_save: даже если хэш не изменился, всё равно перезаписать снимок
+      (используется при ручном «🔄 Проверить сейчас», чтобы всегда было
+      что показать студенту).
+    - skip_broadcast: не рассылать (для тихого старта)."""
+    days, err = await ttzht.fetch_and_parse()
     if days is None:
-        return {"ok": False, "reason": "fetch_failed"}
+        return {"ok": False, "reason": err or "unknown", "days": 0}
 
     new_hash = ttzht.content_hash(days)
     snap = await latest_snapshot()
     old_hash = snap["content_hash"] if snap else None
+    changed = new_hash != old_hash
 
-    if new_hash == old_hash and not force_broadcast:
-        return {"ok": True, "changed": False, "days": len(days)}
+    if changed or force_save:
+        await save_snapshot(new_hash, ttzht.to_json(days))
+    if changed and not skip_broadcast:
+        await _broadcast_changes(bot, days)
 
-    await save_snapshot(new_hash, ttzht.to_json(days))
-    await _broadcast_changes(bot, days)
-    return {"ok": True, "changed": True, "days": len(days)}
+    return {"ok": True, "changed": changed, "days": len(days),
+            "rows": sum(len(d.rows) for d in days)}
 
 
 async def poller_loop(bot: Bot) -> None:
-    """Главный цикл."""
-    # При старте бот не делает рассылку сразу — сохраняем снимок без шума,
-    # чтобы не спамить при первом запуске на уже опубликованные замены.
-    initial = await ttzht.fetch_and_parse()
-    if initial is not None:
-        new_hash = ttzht.content_hash(initial)
-        snap = await latest_snapshot()
-        if snap is None:
-            await save_snapshot(new_hash, ttzht.to_json(initial))
-            logging.info("schedule: initial snapshot saved (no broadcast)")
-        elif snap["content_hash"] != new_hash:
-            # Сайт сменился пока бот был офлайн → шлём
-            await save_snapshot(new_hash, ttzht.to_json(initial))
-            await _broadcast_changes(bot, initial)
+    """Главный цикл. При первом запуске — тихий снимок (без рассылки)."""
+    res = await check_once(bot, force_save=True, skip_broadcast=True)
+    logging.info("schedule: initial fetch result=%s", res)
 
     while True:
         now = _local_now()

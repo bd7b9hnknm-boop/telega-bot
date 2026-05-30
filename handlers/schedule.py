@@ -11,7 +11,8 @@ from database import (
 from utils.i18n import t, get_text
 from keyboards.inline import schedule_root, schedule_my, schedule_cancel, main_menu
 from states.order import GroupSub
-from integrations.ttzht import from_json, render_for_group
+from integrations.ttzht import from_json, render_for_group, render_full, fetch_and_parse, content_hash, to_json
+from database import save_snapshot
 
 router = Router()
 
@@ -101,37 +102,63 @@ async def sched_add_save(message: Message, state: FSMContext, db_user=None):
 
 # ---------- Замены сейчас ----------
 
+async def _ensure_snapshot():
+    """Если в БД нет снимка — пробуем прямо сейчас сходить на сайт.
+    Возвращает (days, error)."""
+    snap = await latest_snapshot()
+    if snap:
+        return from_json(snap["payload"]), None
+    days, err = await fetch_and_parse()
+    if days is None:
+        return None, err
+    # Сохраним сразу — чтобы при следующих заходах всё было быстро
+    await save_snapshot(content_hash(days), to_json(days))
+    return days, None
+
+
 @router.callback_query(F.data == "sched:today")
 async def sched_today(call: CallbackQuery, db_user=None):
     db_user = db_user or await get_user(call.from_user.id)
     lang = _lang(db_user)
-    snap = await latest_snapshot()
-    if not snap:
-        await call.message.edit_text(t("sched_no_data", lang),
-                                     reply_markup=schedule_root(lang))
-        await call.answer(); return
 
-    groups = await user_subscriptions(call.from_user.id)
-    days = from_json(snap["payload"])
-
-    if not groups:
+    days, err = await _ensure_snapshot()
+    if days is None:
         await call.message.edit_text(
-            "<b>📋 Замены сейчас</b>\n\n" + t("sched_my_empty", lang),
+            f"⚠️ Не удалось получить страницу замен (<code>{err}</code>). "
+            "Попробуйте через пару минут.",
             reply_markup=schedule_root(lang))
         await call.answer(); return
 
-    chunks = []
-    for g in groups:
-        s = render_for_group(days, g)
-        if s:
-            chunks.append(s)
-    if not chunks:
-        text = t("sched_nothing_for_you", lang)
+    groups = await user_subscriptions(call.from_user.id)
+    full_text = render_full(days, limit_rows=80)
+
+    if not groups:
+        # Подписок нет — показываем всё, что есть на сайте
+        text = (
+            "<b>📋 Замены сейчас</b>\n\n"
+            "<i>Вы пока не подписаны на группу. Ниже — полный список замен.</i>\n\n"
+            + full_text
+        )
     else:
-        text = "\n\n———\n\n".join(chunks)
-    # Защита от слишком длинного сообщения
+        # Есть подписки — фильтруем под них
+        personal = []
+        for g in groups:
+            s = render_for_group(days, g)
+            if s:
+                personal.append(s)
+        if personal:
+            text = "\n\n———\n\n".join(personal)
+        else:
+            # Подписки есть, но именно сегодняшние замены их не касаются —
+            # покажем полный список, как fallback
+            text = (
+                "📅 <b>Для ваших групп изменений нет.</b>\n\n"
+                "<i>Полный список замен на сегодня/завтра:</i>\n\n"
+                + full_text
+            )
+
     if len(text) > 3800:
-        text = text[:3800] + "\n\n<i>…сокращено</i>"
+        text = text[:3800] + "\n\n<i>…сокращено. Полная версия — на сайте ТТЖТ.</i>"
     try:
         await call.message.edit_text(text, reply_markup=schedule_root(lang))
     except Exception:

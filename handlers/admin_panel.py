@@ -939,18 +939,43 @@ async def sched_toggle(call: CallbackQuery):
     await panel_sched(call)
 
 
+_FETCH_ERR_LABELS = {
+    "timeout": "сайт не ответил за 25 сек",
+    "ssl_error": "ошибка SSL-сертификата",
+    "dns_or_connect": "не удалось подключиться (DNS/сеть)",
+    "parse_failed": "страница загружена, но не удалось распарсить",
+}
+
+
 @router.callback_query(F.data == "pnl:sched:run")
 async def sched_run(call: CallbackQuery, bot: Bot):
     if not _admin(call.from_user.id):
         await call.answer(); return
     await call.answer("Запускаю…")
-    res = await check_once(bot)
+    # force_save=True — сразу обновим снимок даже если хэш не изменился
+    res = await check_once(bot, force_save=True)
     if not res.get("ok"):
-        msg = f"⚠️ Ошибка: {res.get('reason')}"
-    else:
-        ch = "есть, рассылка отправлена" if res.get("changed") else "нет"
-        msg = f"✅ Проверено. Изменения: {ch}. Дней: {res.get('days', '—')}."
-    await call.message.answer(msg, reply_markup=panel_root())
+        reason = res.get("reason", "unknown")
+        label = _FETCH_ERR_LABELS.get(reason, f"<code>{reason}</code>")
+        await call.message.answer(
+            f"⚠️ <b>Не удалось получить страницу.</b>\n\n"
+            f"Причина: {label}\n\n"
+            f"<i>Попробуйте ещё раз через пару минут.</i>",
+            reply_markup=panel_root())
+        return
+
+    # Успех — покажем краткую сводку + полный снимок (обрезанный)
+    snap = await latest_snapshot()
+    days = ttzht.from_json(snap["payload"])
+    text = ttzht.render_full(days, limit_rows=80)
+    if len(text) > 3500:
+        text = text[:3500] + "\n\n<i>…сокращено</i>"
+    ch_label = "🔔 есть, рассылка отправлена" if res.get("changed") else "✔ без изменений"
+    header = (
+        f"✅ <b>Проверено.</b> Изменения: {ch_label}\n"
+        f"Дней: {res.get('days')}, строк: {res.get('rows')}\n\n"
+    )
+    await call.message.answer(header + text, reply_markup=panel_root())
 
 
 @router.callback_query(F.data == "pnl:sched:snap")

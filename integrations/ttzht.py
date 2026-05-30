@@ -204,29 +204,67 @@ def from_json(payload: str) -> list[ScheduleDay]:
 # ------------------------------------------------------------------
 # HTTP
 
-async def fetch_html() -> Optional[str]:
-    timeout = aiohttp.ClientTimeout(total=20)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout, headers=HEADERS) as s:
-            async with s.get(SOURCE_URL) as r:
-                if r.status != 200:
-                    logging.warning("ttzht fetch: status=%s", r.status)
-                    return None
-                return await r.text(encoding="utf-8", errors="ignore")
-    except Exception:
-        logging.exception("ttzht fetch failed")
-        return None
+import asyncio
+import ssl
 
 
-async def fetch_and_parse() -> Optional[list[ScheduleDay]]:
-    html = await fetch_html()
+async def fetch_html(retries: int = 3) -> tuple[Optional[str], Optional[str]]:
+    """Возвращает (html, error). error — короткий код для отображения админу."""
+    timeout = aiohttp.ClientTimeout(total=25, connect=10)
+    # Сертификат у сайта может быть с устаревшей цепочкой —
+    # пробуем сначала со стандартной проверкой, при SSL-ошибке без проверки
+    last_err = None
+    for attempt in range(1, retries + 1):
+        for verify in (True, False):
+            connector = aiohttp.TCPConnector(
+                ssl=None if verify else ssl._create_unverified_context()
+            )
+            try:
+                async with aiohttp.ClientSession(
+                    timeout=timeout, headers=HEADERS, connector=connector
+                ) as s:
+                    async with s.get(SOURCE_URL) as r:
+                        body = await r.text(encoding="utf-8", errors="ignore")
+                        if r.status == 200 and body:
+                            return body, None
+                        last_err = f"http_{r.status}"
+                        logging.warning("ttzht fetch attempt=%d verify=%s status=%s",
+                                        attempt, verify, r.status)
+                        break  # status не 200 — не имеет смысла повторять без verify
+            except aiohttp.ClientSSLError as e:
+                last_err = "ssl_error"
+                logging.warning("ttzht ssl error attempt=%d verify=%s: %s",
+                                attempt, verify, e)
+                # при ssl-ошибке пробуем ещё раз без проверки
+                continue
+            except asyncio.TimeoutError:
+                last_err = "timeout"
+                logging.warning("ttzht timeout attempt=%d", attempt)
+                break
+            except aiohttp.ClientConnectorError as e:
+                last_err = "dns_or_connect"
+                logging.warning("ttzht connect error attempt=%d: %s", attempt, e)
+                break
+            except Exception as e:
+                last_err = f"unknown:{type(e).__name__}"
+                logging.exception("ttzht fetch failed attempt=%d", attempt)
+                break
+        # Между попытками — пауза
+        if attempt < retries:
+            await asyncio.sleep(2 * attempt)
+    return None, last_err or "unknown"
+
+
+async def fetch_and_parse() -> tuple[Optional[list[ScheduleDay]], Optional[str]]:
+    """Возвращает (days|None, error|None)."""
+    html, err = await fetch_html()
     if not html:
-        return None
+        return None, err
     try:
-        return parse_html(html)
+        return parse_html(html), None
     except Exception:
         logging.exception("ttzht parse failed")
-        return None
+        return None, "parse_failed"
 
 
 # ------------------------------------------------------------------
