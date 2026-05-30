@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery
 
 from database import get_user, list_providers
 from utils.i18n import t, get_text
+from utils.ui import edit_or_send
 from keyboards.inline import services_back
 
 router = Router()
@@ -44,8 +45,5 @@ async def show_service(call: CallbackQuery, db_user=None):
     else:
         cards = [_render_provider(p, lang) for p in providers]
         text = header + "\n\n" + "\n\n".join(cards)
-    try:
-        await call.message.edit_text(text, reply_markup=services_back(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=services_back(lang))
+    await edit_or_send(call, text, reply_markup=services_back(lang))
     await call.answer()

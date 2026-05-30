@@ -24,21 +24,46 @@ def purpose_kb(lang: str) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def blocked_kb(lang: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("btn_blocked_support", lang), callback_data="bsup:write")
+    return kb.as_markup()
+
+
+def blocked_support_cancel_kb(lang: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("btn_cancel", lang), callback_data="bsup:cancel")
+    return kb.as_markup()
+
+
+def admin_unblock_kb(user_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔓 Разблокировать", callback_data=f"pnl:unblock:{user_id}")
+    kb.button(text="👤 Профиль", url=f"tg://user?id={user_id}")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 # ---------- Главное меню ----------
 
 def main_menu(lang: str) -> InlineKeyboardMarkup:
+    """Логические блоки:
+       1) Заработать/заказать → Учёба, Маркет
+       2) Полезное по техникуму → Замены, Общага, Документы
+       3) Соседские услуги     → Распечатка, Конспекты
+       4) Сервис               → Поддержка, Условия, Язык."""
     kb = InlineKeyboardBuilder()
-    kb.button(text=t("btn_study",  lang), callback_data="nav:study")
-    kb.button(text=t("btn_market", lang), callback_data="nav:market")
-    kb.button(text=t("btn_print",  lang), callback_data="srv:print")
+    kb.button(text=t("btn_study",     lang), callback_data="nav:study")
+    kb.button(text=t("btn_market",    lang), callback_data="nav:market")
+    kb.button(text=t("btn_schedule",  lang), callback_data="nav:sched")
+    kb.button(text=t("btn_dorm",      lang), callback_data="nav:dorm")
+    kb.button(text=t("btn_docs",      lang), callback_data="nav:docs")
+    kb.button(text=t("btn_print",     lang), callback_data="srv:print")
     kb.button(text=t("btn_notes_srv", lang), callback_data="srv:notes")
-    kb.button(text=t("btn_dorm",   lang), callback_data="nav:dorm")
-    kb.button(text=t("btn_schedule", lang), callback_data="nav:sched")
-    kb.button(text=t("btn_docs",   lang), callback_data="nav:docs")
-    kb.button(text=t("btn_terms",  lang), callback_data="info:terms")
-    kb.button(text=t("btn_contacts", lang), callback_data="info:contacts")
-    kb.button(text=t("btn_lang",   lang), callback_data="nav:lang")
-    kb.adjust(2, 2, 2, 2, 2, 1)
+    kb.button(text=t("btn_contacts",  lang), callback_data="info:contacts")
+    kb.button(text=t("btn_terms",     lang), callback_data="info:terms")
+    kb.button(text=t("btn_lang",      lang), callback_data="nav:lang")
+    kb.adjust(2, 2, 1, 2, 2, 1)
     return kb.as_markup()
 
 
@@ -250,6 +275,7 @@ def chat_kb(lang: str) -> InlineKeyboardMarkup:
 def services_back(lang: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=t("btn_home", lang), callback_data="nav:home")
+    kb.adjust(1)
     return kb.as_markup()
 
 

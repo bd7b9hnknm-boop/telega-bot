@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery
 
 from database import get_user, list_documents, get_document
 from utils.i18n import get_text, t
+from utils.ui import edit_or_send
 from keyboards.inline import documents_kb, back_home
 
 router = Router()
@@ -19,16 +20,10 @@ async def docs_home(call: CallbackQuery, db_user=None):
     docs = await list_documents()
     header = await get_text("docs_header", lang)
     if not docs:
-        text = f"{header}\n\n{t('docs_empty', lang)}"
-        try:
-            await call.message.edit_text(text, reply_markup=back_home(lang))
-        except Exception:
-            await call.message.answer(text, reply_markup=back_home(lang))
+        await edit_or_send(call, f"{header}\n\n{t('docs_empty', lang)}",
+                           reply_markup=back_home(lang))
     else:
-        try:
-            await call.message.edit_text(header, reply_markup=documents_kb(lang, docs))
-        except Exception:
-            await call.message.answer(header, reply_markup=documents_kb(lang, docs))
+        await edit_or_send(call, header, reply_markup=documents_kb(lang, docs))
     await call.answer()
 
 

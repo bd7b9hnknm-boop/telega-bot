@@ -18,6 +18,7 @@ from handlers import (
     onboarding, start, catalog, order, my_orders,
     support, admin, admin_panel, marketplace, services,
     documents, dorm, payments, chat_mod, schedule, common,
+    blocked_support,
 )
 from handlers.payments import crypto_polling_task
 from handlers.schedule_poller import poller_loop as schedule_poller_loop
@@ -70,6 +71,10 @@ async def main() -> None:
     # Порядок роутеров критичен для пересечений FSM:
     # модерация чата (групповые команды) — первой
     dp.include_router(chat_mod.router)
+    # ЧС-поддержка ловится максимально рано — потому что middleware пропускает
+    # сюда заблокированных, и мы не хотим, чтобы их сообщение зацепили другие
+    # message-хендлеры
+    dp.include_router(blocked_support.router)
     # админская часть
     dp.include_router(admin_panel.router)
     dp.include_router(admin.router)

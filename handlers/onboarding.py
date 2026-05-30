@@ -34,16 +34,24 @@ async def _show_welcome(message_or_call, lang: str, name: str) -> None:
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     user = await get_user(message.from_user.id)
-    # Новый — спрашиваем язык
+    # Новый пользователь — спрашиваем язык
     if not user or not user.get("language"):
         await message.answer(t("choose_language"), reply_markup=language_kb())
         return
     lang = user["language"]
-    # Язык есть, но не выбрана причина — спрашиваем
+    # Язык есть, но нет причины — продолжим онбординг
     if not user.get("purpose"):
         await message.answer(t("choose_purpose", lang), reply_markup=purpose_kb(lang))
         return
-    # Всё ок — главное меню
+    # Уже онбординг пройден.
+    # Большое приветствие с фото показываем только один раз — потом обычное меню.
+    if user.get("welcome_seen"):
+        from keyboards.inline import main_menu
+        from utils.i18n import get_text
+        await message.answer(await get_text("main_menu_header", lang),
+                             reply_markup=main_menu(lang))
+        return
+    await set_user_field(message.from_user.id, "welcome_seen", 1)
     await _show_welcome(message, lang, message.from_user.first_name)
 
 
@@ -90,6 +98,7 @@ async def purpose_ttzht(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     lang = (user and user.get("language")) or "ru"
     await set_user_field(call.from_user.id, "purpose", "ttzht")
+    await set_user_field(call.from_user.id, "welcome_seen", 1)
     try:
         await call.message.delete()
     except Exception:

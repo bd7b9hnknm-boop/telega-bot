@@ -9,6 +9,7 @@ from database import (
     latest_snapshot,
 )
 from utils.i18n import t, get_text
+from utils.ui import edit_or_send
 from keyboards.inline import schedule_root, schedule_my, schedule_cancel, main_menu
 from states.order import GroupSub
 from integrations.ttzht import (
@@ -35,11 +36,8 @@ def _norm_group(s: str) -> str:
 async def sched_root(call: CallbackQuery, state: FSMContext, db_user=None):
     await state.clear()
     lang = _lang(db_user or await get_user(call.from_user.id))
-    text = await get_text("sched_header", lang)
-    try:
-        await call.message.edit_text(text, reply_markup=schedule_root(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=schedule_root(lang))
+    await edit_or_send(call, await get_text("sched_header", lang),
+                       reply_markup=schedule_root(lang))
     await call.answer()
 
 
@@ -54,10 +52,7 @@ async def sched_my(call: CallbackQuery, db_user=None):
     else:
         text = "<b>👤 Мои группы</b>\n\n" + "\n".join(f"▸ <b>{g}</b>" for g in groups) + \
                "\n\n<i>Нажмите на группу, чтобы отписаться.</i>"
-    try:
-        await call.message.edit_text(text, reply_markup=schedule_my(lang, groups))
-    except Exception:
-        await call.message.answer(text, reply_markup=schedule_my(lang, groups))
+    await edit_or_send(call, text, reply_markup=schedule_my(lang, groups))
     await call.answer()
 
 
@@ -126,7 +121,7 @@ async def sched_today(call: CallbackQuery, db_user=None):
 
     days, fetched_at, err = await _ensure_snapshot()
     if days is None:
-        await call.message.edit_text(
+        await edit_or_send(call,
             f"⚠️ Не удалось получить страницу замен (<code>{err}</code>). "
             "Попробуйте через пару минут.",
             reply_markup=schedule_root(lang))
@@ -159,10 +154,5 @@ async def sched_today(call: CallbackQuery, db_user=None):
             )
 
     text += footer
-    if len(text) > 3800:
-        text = text[:3800] + "\n\n<i>…сокращено. Полная версия — на сайте ТТЖТ.</i>"
-    try:
-        await call.message.edit_text(text, reply_markup=schedule_root(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=schedule_root(lang))
+    await edit_or_send(call, text, reply_markup=schedule_root(lang))
     await call.answer()

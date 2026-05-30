@@ -10,6 +10,7 @@ from database import (
     list_supervisors, get_duty_state, set_duty_state, log_duty, get_duty_for_date,
 )
 from utils.i18n import t, get_text
+from utils.ui import edit_or_send
 from keyboards.inline import dorm_root, dorm_pay_kb, back_home
 
 router = Router()
@@ -30,10 +31,7 @@ def today_local() -> str:
 async def dorm_home(call: CallbackQuery, db_user=None):
     lang = _lang(db_user or await get_user(call.from_user.id))
     text = await get_text("dorm_header", lang)
-    try:
-        await call.message.edit_text(text, reply_markup=dorm_root(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=dorm_root(lang))
+    await edit_or_send(call, text, reply_markup=dorm_root(lang))
     await call.answer()
 
 
@@ -46,10 +44,7 @@ async def dorm_pay(call: CallbackQuery, db_user=None):
         or await get_setting("dorm:pay_text:ru") \
         or await get_text("dorm_pay_default", lang)
     link = await get_setting("dorm:pay_link")
-    try:
-        await call.message.edit_text(text, reply_markup=dorm_pay_kb(lang, link))
-    except Exception:
-        await call.message.answer(text, reply_markup=dorm_pay_kb(lang, link))
+    await edit_or_send(call, text, reply_markup=dorm_pay_kb(lang, link))
     await call.answer()
 
 
@@ -61,10 +56,7 @@ async def dorm_info(call: CallbackQuery, db_user=None):
     text = await get_setting(f"dorm:info:{lang}") \
         or await get_setting("dorm:info:ru") \
         or await get_text("dorm_info_default", lang)
-    try:
-        await call.message.edit_text(text, reply_markup=back_home(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=back_home(lang))
+    await edit_or_send(call, text, reply_markup=back_home(lang))
     await call.answer()
 
 
@@ -129,8 +121,5 @@ async def dorm_duty(call: CallbackQuery, db_user=None):
 
     d = await resolve_duty_for_today()
     text = render_duty(d, lang)
-    try:
-        await call.message.edit_text(text, reply_markup=back_home(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=back_home(lang))
+    await edit_or_send(call, text, reply_markup=back_home(lang))
     await call.answer()

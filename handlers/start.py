@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from database import get_user
 from keyboards.inline import main_menu, study_menu
 from utils.i18n import get_text
+from utils.ui import edit_or_send
 
 router = Router()
 
@@ -22,23 +23,12 @@ async def cmd_menu(message: Message, state: FSMContext, db_user=None):
     await message.answer(text, reply_markup=main_menu(lang))
 
 
-async def _show_main(call, lang: str):
-    text = await get_text("main_menu_header", lang)
-    try:
-        if call.message.photo:
-            await call.message.delete()
-            await call.message.answer(text, reply_markup=main_menu(lang))
-        else:
-            await call.message.edit_text(text, reply_markup=main_menu(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=main_menu(lang))
-
-
 @router.callback_query(F.data == "nav:home")
 async def nav_home(call: CallbackQuery, state: FSMContext, db_user=None):
     await state.clear()
     lang = _lang(db_user or await get_user(call.from_user.id))
-    await _show_main(call, lang)
+    await edit_or_send(call, await get_text("main_menu_header", lang),
+                       reply_markup=main_menu(lang))
     await call.answer()
 
 
@@ -46,9 +36,6 @@ async def nav_home(call: CallbackQuery, state: FSMContext, db_user=None):
 async def nav_study(call: CallbackQuery, state: FSMContext, db_user=None):
     await state.clear()
     lang = _lang(db_user or await get_user(call.from_user.id))
-    text = await get_text("study_header", lang)
-    try:
-        await call.message.edit_text(text, reply_markup=study_menu(lang))
-    except Exception:
-        await call.message.answer(text, reply_markup=study_menu(lang))
+    await edit_or_send(call, await get_text("study_header", lang),
+                       reply_markup=study_menu(lang))
     await call.answer()

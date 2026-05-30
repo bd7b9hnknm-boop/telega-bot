@@ -26,19 +26,25 @@ EDITABLE_TEXTS = [
 
 
 def panel_root() -> InlineKeyboardMarkup:
+    """Сгруппировано по смыслу:
+       — Контент (тексты + фото)
+       — Каталоги (маркет, исполнители, документы)
+       — Общага (общежитие, воспитатели, замены)
+       — Деньги
+       — Служебное (ЧС, статистика, закрыть)."""
     kb = InlineKeyboardBuilder()
     kb.button(text="📝 Тексты",            callback_data="pnl:texts")
-    kb.button(text="🖼 Приветств. фото",   callback_data="pnl:photo")
+    kb.button(text="🖼 Фото",              callback_data="pnl:photo")
     kb.button(text="🛒 Маркет",            callback_data="pnl:market")
+    kb.button(text="📋 Документы",         callback_data="pnl:docs")
     kb.button(text="🖨 Распечатка",        callback_data="pnl:srv:print")
     kb.button(text="📝 Конспекты",         callback_data="pnl:srv:notes")
-    kb.button(text="📋 Документы",         callback_data="pnl:docs")
     kb.button(text="🏠 Общежитие",         callback_data="pnl:dorm")
     kb.button(text="👤 Воспитатели",       callback_data="pnl:sup")
-    kb.button(text="💳 Реквизиты оплаты",  callback_data="pnl:pay")
     kb.button(text="📅 Замены ТТЖТ",       callback_data="pnl:sched")
-    kb.button(text="🚫 Чёрный список",     callback_data="pnl:blocked")
-    kb.button(text="📊 Статистика",        callback_data="pnl:stats")
+    kb.button(text="💳 Реквизиты",         callback_data="pnl:pay")
+    kb.button(text="🚫 ЧС",                callback_data="pnl:blocked")
+    kb.button(text="📊 Стат",              callback_data="pnl:stats")
     kb.button(text="❌ Закрыть",           callback_data="pnl:close")
     kb.adjust(2, 2, 2, 2, 2, 2, 1)
     return kb.as_markup()

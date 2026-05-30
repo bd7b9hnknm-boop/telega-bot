@@ -61,6 +61,10 @@ async def init_db() -> None:
         )""")
         # age_confirmed нужен для 18+ категорий
         await _add_col_if_missing(db, "users", "age_confirmed", "INTEGER NOT NULL DEFAULT 0")
+        # welcome_seen — показывали ли уже большое приветствие
+        await _add_col_if_missing(db, "users", "welcome_seen", "INTEGER NOT NULL DEFAULT 0")
+        # support_pending — ждём от ЧС-пользователя сообщение в поддержку
+        await _add_col_if_missing(db, "users", "support_pending", "INTEGER NOT NULL DEFAULT 0")
 
         await db.execute("""
         CREATE TABLE IF NOT EXISTS orders (
@@ -236,7 +240,8 @@ async def get_user(user_id) -> Optional[dict]:
 
 
 async def set_user_field(user_id, field, value) -> None:
-    if field not in {"language", "purpose", "age_confirmed"}:
+    if field not in {"language", "purpose", "age_confirmed",
+                     "welcome_seen", "support_pending"}:
         return
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(f"UPDATE users SET {field}=? WHERE id=?", (value, user_id))
@@ -254,7 +259,8 @@ async def block_user(user_id, reason) -> None:
 async def unblock_user(user_id) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE users SET is_blocked=0, block_reason=NULL, purpose=NULL WHERE id=?",
+            "UPDATE users SET is_blocked=0, block_reason=NULL, purpose=NULL, "
+            "support_pending=0 WHERE id=?",
             (user_id,))
         await db.commit()
 
