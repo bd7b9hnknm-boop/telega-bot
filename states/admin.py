@@ -2,9 +2,33 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class AdminEdit(StatesGroup):
-    waiting_text = State()    # ожидание нового текста для ключа
-    waiting_photo = State()   # ожидание новой приветственной фотки
+    waiting_text = State()
+    waiting_photo = State()
 
 
 class AdminReply(StatesGroup):
-    waiting = State()         # анонимный ответ клиенту через бота
+    waiting = State()
+
+
+class AdminProvider(StatesGroup):
+    """Добавление/редактирование исполнителя (распечатка/конспекты)."""
+    name = State()
+    room = State()
+    contact = State()
+    price = State()
+    note = State()
+
+
+class AdminDoc(StatesGroup):
+    title = State()
+    file = State()
+
+
+class AdminSupervisor(StatesGroup):
+    name = State()
+    floor = State()
+
+
+class AdminDormChat(StatesGroup):
+    """Состояние для команды установки чата общаги."""
+    waiting = State()

@@ -1,4 +1,3 @@
-# Точка входа
 import asyncio
 import logging
 import sys
@@ -17,8 +16,10 @@ from database import init_db
 from middlewares.access import AccessMiddleware
 from handlers import (
     onboarding, start, catalog, order, my_orders,
-    support, admin, admin_panel, common,
+    support, admin, admin_panel, marketplace, services,
+    documents, dorm, payments, chat_mod, common,
 )
+from handlers.payments import crypto_polling_task
 
 
 async def setup_commands(bot: Bot) -> None:
@@ -33,8 +34,11 @@ async def setup_commands(bot: Bot) -> None:
     admin_cmds = user_cmds + [
         BotCommand(command="panel", description="🛠 Админ-панель"),
         BotCommand(command="stats", description="📊 Статистика"),
-        BotCommand(command="reply", description="💬 Ответить клиенту по id"),
+        BotCommand(command="reply", description="💬 Ответить клиенту"),
         BotCommand(command="stop",  description="🛑 Выйти из режима ответа"),
+        BotCommand(command="setamount", description="💰 Сумма ₽ для заявки"),
+        BotCommand(command="setusdt",   description="🪙 Сумма USDT"),
+        BotCommand(command="chatid",    description="🆔 Узнать id чата"),
     ]
     try:
         await bot.set_my_commands(admin_cmds, scope=BotCommandScopeChat(chat_id=ADMIN_ID))
@@ -49,7 +53,7 @@ async def main() -> None:
         stream=sys.stdout,
     )
     if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN не задан. Укажи переменную окружения в Railway → Variables.")
+        raise RuntimeError("BOT_TOKEN не задан. Railway → Variables.")
 
     bot = Bot(
         token=BOT_TOKEN,
@@ -60,20 +64,27 @@ async def main() -> None:
     )
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Глобальный middleware: регистрация пользователя + блокировка ЧС
     dp.update.outer_middleware(AccessMiddleware())
 
-    # Порядок роутеров: админские раньше пользовательских,
-    # support раньше order (FSM SupportForm/AdminReply нужно отлавливать первыми),
-    # common — самый последний (фолбэк).
+    # Порядок роутеров критичен для пересечений FSM:
+    # модерация чата (групповые команды) — первой
+    dp.include_router(chat_mod.router)
+    # админская часть
     dp.include_router(admin_panel.router)
     dp.include_router(admin.router)
     dp.include_router(support.router)
+    # пользовательская
     dp.include_router(onboarding.router)
     dp.include_router(start.router)
     dp.include_router(catalog.router)
     dp.include_router(order.router)
+    dp.include_router(payments.router)
+    dp.include_router(marketplace.router)
+    dp.include_router(services.router)
+    dp.include_router(documents.router)
+    dp.include_router(dorm.router)
     dp.include_router(my_orders.router)
+    # фолбэки — в самом конце
     dp.include_router(common.router)
 
     await init_db()
@@ -82,6 +93,9 @@ async def main() -> None:
 
     me = await bot.get_me()
     logging.info("Бот запущен: @%s (id=%s)", me.username, me.id)
+
+    # Фоновый поллинг крипто-инвойсов
+    asyncio.create_task(crypto_polling_task(bot))
 
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 

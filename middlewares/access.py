@@ -1,8 +1,8 @@
-# Middleware: регистрация пользователя + блокировка ЧС.
-# Срабатывает раньше всех хендлеров. Админ обходит ЧС.
+# Регистрация пользователя + блокировка ЧС.
+# Срабатывает только для личных чатов с ботом; группы — пропускаются.
 from typing import Callable, Awaitable, Any
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject, Update, CallbackQuery, Message
+from aiogram.types import TelegramObject, Update
 
 from config import ADMIN_ID
 from database import upsert_user, get_user
@@ -16,21 +16,21 @@ class AccessMiddleware(BaseMiddleware):
         event: Update,
         data: dict[str, Any],
     ) -> Any:
-        # Достаём пользователя из любого типа апдейта
         tg_user = data.get("event_from_user")
         if tg_user is None:
             return await handler(event, data)
 
-        # Регистрируем/обновляем пользователя
-        await upsert_user(tg_user.id, tg_user.username, tg_user.full_name)
-
-        # Админ — всегда пропускается
-        if tg_user.id == ADMIN_ID:
-            user = await get_user(tg_user.id)
-            data["db_user"] = user
+        # Определим тип чата — для групп пропускаем регистрацию/блок
+        chat = data.get("event_chat")
+        if chat and chat.type in ("group", "supergroup", "channel"):
             return await handler(event, data)
 
-        # Проверка блокировки
+        await upsert_user(tg_user.id, tg_user.username, tg_user.full_name)
+
+        if tg_user.id == ADMIN_ID:
+            data["db_user"] = await get_user(tg_user.id)
+            return await handler(event, data)
+
         user = await get_user(tg_user.id)
         data["db_user"] = user
         if user and user.get("is_blocked"):
@@ -43,6 +43,5 @@ class AccessMiddleware(BaseMiddleware):
                     await event.callback_query.answer(text, show_alert=True)
             except Exception:
                 pass
-            return  # глушим обработку
-
+            return
         return await handler(event, data)

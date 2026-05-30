@@ -29,7 +29,7 @@ async def my_orders(call: CallbackQuery, db_user=None):
             )
         text = "\n".join(lines)
     try:
-        await call.message.edit_text(text, reply_markup=my_orders_kb(lang))
+        await call.message.edit_text(text, reply_markup=my_orders_kb(lang, orders))
     except Exception:
-        await call.message.answer(text, reply_markup=my_orders_kb(lang))
+        await call.message.answer(text, reply_markup=my_orders_kb(lang, orders))
     await call.answer()

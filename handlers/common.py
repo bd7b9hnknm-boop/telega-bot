@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -14,14 +14,14 @@ def _lang(db_user) -> str:
     return (db_user and db_user.get("language")) or "ru"
 
 
-@router.message(Command("cancel"))
+@router.message(Command("cancel"), F.chat.type == "private")
 async def cmd_cancel(message: Message, state: FSMContext, db_user=None):
     lang = _lang(db_user or await get_user(message.from_user.id))
     await state.clear()
     await message.answer(t("order_cancelled", lang), reply_markup=main_menu(lang))
 
 
-@router.message(Command("help"))
+@router.message(Command("help"), F.chat.type == "private")
 async def cmd_help(message: Message, db_user=None):
     lang = _lang(db_user or await get_user(message.from_user.id))
     await message.answer(
@@ -30,20 +30,16 @@ async def cmd_help(message: Message, db_user=None):
         "▸ /menu — открыть меню\n"
         "▸ /cancel — отменить действие\n"
         "▸ /help — справка",
-        reply_markup=main_menu(lang),
-    )
+        reply_markup=main_menu(lang))
 
 
-@router.message()
+@router.message(F.chat.type == "private")
 async def fallback(message: Message, state: FSMContext, db_user=None):
-    """Любое сообщение вне FSM — показать главное меню."""
     if await state.get_state():
         return
     lang = _lang(db_user or await get_user(message.from_user.id))
-    # Если пользователь не прошёл онбординг — отправим к /start
     if not db_user or not db_user.get("language") or not db_user.get("purpose"):
-        await message.answer("Отправьте /start, чтобы начать.")
-        return
+        await message.answer("Отправьте /start, чтобы начать."); return
     await message.answer(t("main_menu_header", lang), reply_markup=main_menu(lang))
 
 
