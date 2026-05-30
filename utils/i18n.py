@@ -44,6 +44,7 @@ TEXTS = {
         "btn_print":      "🖨 Распечатка",
         "btn_notes_srv":  "📝 Конспекты на заказ",
         "btn_dorm":       "🏠 Общежитие",
+        "btn_schedule":   "📅 Замены",
         "btn_docs":       "📋 Документы",
         "btn_terms":      "ℹ️ Условия",
         "btn_contacts":   "📞 Поддержка",
@@ -323,6 +324,38 @@ TEXTS = {
         ),
         "docs_empty": "<i>Документов пока нет.</i>",
 
+        # ===== Замены =====
+        "sched_header": (
+            "<b>📅 Замены ТТЖТ</b>\n\n"
+            "Подпишитесь на свою группу — будете получать уведомления о заменах "
+            "в личку, как только они появятся на сайте техникума.\n\n"
+            "<i>Источник:</i> ttgdt.stu.ru/students/zam"
+        ),
+        "btn_sched_my":  "👤 Мои группы",
+        "btn_sched_add": "➕ Подписаться на группу",
+        "btn_sched_today": "📋 Замены сейчас",
+        "sched_my_empty": "<i>Вы пока не подписаны ни на одну группу.</i>",
+        "sched_ask_group": (
+            "✏️ Введите номер группы (например: <code>153</code>, <code>735</code>, "
+            "<code>551-П</code>).\n\n"
+            "<i>Регистр не важен. Можно подписаться на несколько групп — "
+            "просто введите ещё раз с другим номером.</i>"
+        ),
+        "sched_added": "✅ Подписка на группу <b>{g}</b> оформлена.",
+        "sched_already": "ℹ️ Вы уже подписаны на <b>{g}</b>.",
+        "sched_removed": "🗑 Подписка на <b>{g}</b> удалена.",
+        "sched_no_data": "<i>Данных пока нет — бот ещё не собирал замены.</i>",
+        "sched_nothing_for_you": (
+            "📅 <b>Замены загружены</b>\n\n"
+            "Для ваших групп изменений нет."
+        ),
+        "sched_broadcast_chat": (
+            "🔔 <b>Появились свежие замены</b>\n\n"
+            "{summary}\n\n"
+            "Открыть полностью: ttgdt.stu.ru/students/zam"
+        ),
+        "btn_sched_unsub": "🗑 Отписаться",
+
         # ===== Общие =====
         "validation_short": "⚠️ Слишком короткое сообщение.",
         "validation_long":  "⚠️ Слишком длинно. Сократите.",
@@ -359,6 +392,7 @@ TEXTS = {
         "btn_print":      "🖨 Printing",
         "btn_notes_srv":  "📝 Note-taking",
         "btn_dorm":       "🏠 Dormitory",
+        "btn_schedule":   "📅 Schedule changes",
         "btn_docs":       "📋 Documents",
         "btn_terms":      "ℹ️ Terms",
         "btn_contacts":   "📞 Support",
@@ -500,6 +534,20 @@ TEXTS = {
 
         "docs_header": "<b>📋 Document templates</b>\n\nTap a title to get the file.",
         "docs_empty": "<i>No documents yet.</i>",
+
+        "sched_header": "<b>📅 TTZHT schedule changes</b>\n\nSubscribe to your group for personal notifications.",
+        "btn_sched_my":  "👤 My groups",
+        "btn_sched_add": "➕ Subscribe to group",
+        "btn_sched_today": "📋 Current changes",
+        "sched_my_empty": "<i>You are not subscribed to any group yet.</i>",
+        "sched_ask_group": "✏️ Type the group number (e.g. <code>153</code>).",
+        "sched_added": "✅ Subscribed to <b>{g}</b>.",
+        "sched_already": "ℹ️ Already subscribed to <b>{g}</b>.",
+        "sched_removed": "🗑 Unsubscribed from <b>{g}</b>.",
+        "sched_no_data": "<i>No data yet.</i>",
+        "sched_nothing_for_you": "📅 <b>Changes loaded</b>\n\nNo changes for your groups.",
+        "sched_broadcast_chat": "🔔 <b>New schedule changes</b>\n\n{summary}",
+        "btn_sched_unsub": "🗑 Unsubscribe",
 
         "validation_short": "⚠️ Too short.",
         "validation_long":  "⚠️ Too long.",

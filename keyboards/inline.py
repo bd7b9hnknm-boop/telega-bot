@@ -33,11 +33,12 @@ def main_menu(lang: str) -> InlineKeyboardMarkup:
     kb.button(text=t("btn_print",  lang), callback_data="srv:print")
     kb.button(text=t("btn_notes_srv", lang), callback_data="srv:notes")
     kb.button(text=t("btn_dorm",   lang), callback_data="nav:dorm")
+    kb.button(text=t("btn_schedule", lang), callback_data="nav:sched")
     kb.button(text=t("btn_docs",   lang), callback_data="nav:docs")
     kb.button(text=t("btn_terms",  lang), callback_data="info:terms")
     kb.button(text=t("btn_contacts", lang), callback_data="info:contacts")
     kb.button(text=t("btn_lang",   lang), callback_data="nav:lang")
-    kb.adjust(2, 2, 2, 2, 1)
+    kb.adjust(2, 2, 2, 2, 2, 1)
     return kb.as_markup()
 
 
@@ -303,6 +304,34 @@ def pay_card_kb(lang: str, payment_id: int) -> InlineKeyboardMarkup:
     kb.button(text=t("btn_pay_done", lang), callback_data=f"pay:claim:{payment_id}")
     kb.button(text=t("btn_back", lang), callback_data="my:list")
     kb.adjust(1)
+    return kb.as_markup()
+
+
+# ---------- Расписание ----------
+
+def schedule_root(lang: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("btn_sched_my",    lang), callback_data="sched:my")
+    kb.button(text=t("btn_sched_add",   lang), callback_data="sched:add")
+    kb.button(text=t("btn_sched_today", lang), callback_data="sched:today")
+    kb.button(text=t("btn_home", lang), callback_data="nav:home")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def schedule_my(lang: str, groups: list[str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for g in groups:
+        kb.button(text=f"🗑 {g}", callback_data=f"sched:unsub:{g}")
+    kb.button(text=t("btn_sched_add", lang), callback_data="sched:add")
+    kb.button(text=t("btn_back", lang), callback_data="nav:sched")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def schedule_cancel(lang: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("btn_cancel", lang), callback_data="nav:sched")
     return kb.as_markup()
 
 

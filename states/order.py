@@ -24,3 +24,8 @@ class ListingCreate(StatesGroup):
 class P2PChat(StatesGroup):
     """Анонимная переписка покупатель ↔ продавец через бота."""
     chatting = State()
+
+
+class GroupSub(StatesGroup):
+    """Ввод названия группы для подписки."""
+    waiting = State()

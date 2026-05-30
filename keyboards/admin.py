@@ -36,10 +36,25 @@ def panel_root() -> InlineKeyboardMarkup:
     kb.button(text="🏠 Общежитие",         callback_data="pnl:dorm")
     kb.button(text="👤 Воспитатели",       callback_data="pnl:sup")
     kb.button(text="💳 Реквизиты оплаты",  callback_data="pnl:pay")
+    kb.button(text="📅 Замены ТТЖТ",       callback_data="pnl:sched")
     kb.button(text="🚫 Чёрный список",     callback_data="pnl:blocked")
     kb.button(text="📊 Статистика",        callback_data="pnl:stats")
     kb.button(text="❌ Закрыть",           callback_data="pnl:close")
-    kb.adjust(2, 2, 2, 2, 2, 2)
+    kb.adjust(2, 2, 2, 2, 2, 2, 1)
+    return kb.as_markup()
+
+
+def schedule_admin(enabled: bool, has_chat: bool) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=("🟢 Поллер: ВКЛ" if enabled else "🔴 Поллер: ВЫКЛ"),
+              callback_data="pnl:sched:toggle")
+    kb.button(text="🔄 Проверить сейчас", callback_data="pnl:sched:run")
+    kb.button(text="📋 Последний снимок", callback_data="pnl:sched:snap")
+    kb.button(text="👥 Подписчики по группам", callback_data="pnl:sched:subs")
+    if not has_chat:
+        kb.button(text="⚠️ chat_id общаги не задан", callback_data="pnl:dorm")
+    kb.button(text="◀️ Назад", callback_data="pnl:home")
+    kb.adjust(1)
     return kb.as_markup()
 
 

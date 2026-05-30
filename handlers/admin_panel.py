@@ -24,8 +24,11 @@ from keyboards.admin import (
     providers_admin, provider_edit_kb,
     documents_admin, document_item_kb,
     dorm_admin, supervisors_admin, supervisor_item_kb, floor_choice_for_sup,
-    payments_admin,
+    payments_admin, schedule_admin,
 )
+from database import all_subscribed_groups, latest_snapshot
+from integrations import ttzht
+from handlers.schedule_poller import check_once
 from utils.i18n import t
 from states.admin import (
     AdminEdit, AdminProvider, AdminDoc, AdminSupervisor, AdminDormChat,
@@ -900,3 +903,86 @@ async def cmd_setusdt(message: Message):
 
 
 # pay_key обрабатывается в admin_edit_save
+
+
+# ============================================================
+# Замены ТТЖТ
+# ============================================================
+
+@router.callback_query(F.data == "pnl:sched")
+async def panel_sched(call: CallbackQuery):
+    if not _admin(call.from_user.id):
+        await call.answer(); return
+    enabled = (await get_setting("sched:enabled")) != "0"
+    has_chat = bool(await get_setting("dorm:chat_id"))
+    snap = await latest_snapshot()
+    last_str = ("—" if not snap else snap["fetched_at"][:16].replace("T", " "))
+    total_subs = sum((await all_subscribed_groups()).values())
+    await call.message.edit_text(
+        "<b>📅 Замены ТТЖТ</b>\n\n"
+        f"Источник: <code>{ttzht.SOURCE_URL}</code>\n"
+        f"Последняя проверка: <code>{last_str}</code> UTC\n"
+        f"Подписок всего: <b>{total_subs}</b>\n\n"
+        "<i>В часы 11–17 (Томск) — опрос каждые 10 мин, в остальное "
+        "время — раз в час. Ночью спит.</i>",
+        reply_markup=schedule_admin(enabled, has_chat))
+    await call.answer()
+
+
+@router.callback_query(F.data == "pnl:sched:toggle")
+async def sched_toggle(call: CallbackQuery):
+    if not _admin(call.from_user.id):
+        await call.answer(); return
+    cur = (await get_setting("sched:enabled")) != "0"
+    await set_setting("sched:enabled", "0" if cur else "1")
+    await call.answer("Переключено")
+    await panel_sched(call)
+
+
+@router.callback_query(F.data == "pnl:sched:run")
+async def sched_run(call: CallbackQuery, bot: Bot):
+    if not _admin(call.from_user.id):
+        await call.answer(); return
+    await call.answer("Запускаю…")
+    res = await check_once(bot)
+    if not res.get("ok"):
+        msg = f"⚠️ Ошибка: {res.get('reason')}"
+    else:
+        ch = "есть, рассылка отправлена" if res.get("changed") else "нет"
+        msg = f"✅ Проверено. Изменения: {ch}. Дней: {res.get('days', '—')}."
+    await call.message.answer(msg, reply_markup=panel_root())
+
+
+@router.callback_query(F.data == "pnl:sched:snap")
+async def sched_snap(call: CallbackQuery):
+    if not _admin(call.from_user.id):
+        await call.answer(); return
+    snap = await latest_snapshot()
+    if not snap:
+        await call.message.edit_text("<i>Снимков ещё нет.</i>",
+                                     reply_markup=schedule_admin(True, True))
+        await call.answer(); return
+    days = ttzht.from_json(snap["payload"])
+    text = ttzht.render_full(days, limit_rows=50)
+    if len(text) > 3800:
+        text = text[:3800] + "\n\n<i>…сокращено</i>"
+    await call.message.edit_text(
+        f"<b>📋 Последний снимок</b> ({snap['fetched_at'][:16].replace('T', ' ')} UTC)\n\n{text}",
+        reply_markup=schedule_admin(True, True))
+    await call.answer()
+
+
+@router.callback_query(F.data == "pnl:sched:subs")
+async def sched_subs(call: CallbackQuery):
+    if not _admin(call.from_user.id):
+        await call.answer(); return
+    data = await all_subscribed_groups()
+    if not data:
+        text = "<i>Подписок пока нет.</i>"
+    else:
+        lines = ["<b>👥 Подписчики по группам</b>", ""]
+        for g, n in data.items():
+            lines.append(f"▸ <b>{g}</b> — {n}")
+        text = "\n".join(lines)
+    await call.message.edit_text(text, reply_markup=schedule_admin(True, True))
+    await call.answer()

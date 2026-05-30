@@ -184,6 +184,23 @@ async def init_db() -> None:
             created_at TEXT NOT NULL
         )""")
 
+        # --- Расписание / замены ---
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            user_id    INTEGER NOT NULL,
+            group_name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, group_name)
+        )""")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_sub_group ON subscriptions(group_name)")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS schedule_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_hash TEXT NOT NULL,
+            payload TEXT NOT NULL,   -- JSON: [{date, rows: [...]}]
+            fetched_at TEXT NOT NULL
+        )""")
+
         await db.execute("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_att_order ON order_attachments(order_id)")
@@ -692,6 +709,77 @@ async def set_setting(key, value) -> None:
                 ON CONFLICT(key) DO UPDATE SET value=excluded.value
             """, (key, value))
         await db.commit()
+
+
+# ---------- Подписки на группы ----------
+
+async def add_subscription(user_id: int, group: str) -> None:
+    from datetime import datetime
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT OR IGNORE INTO subscriptions (user_id, group_name, created_at)
+            VALUES (?,?,?)
+        """, (user_id, group, datetime.utcnow().isoformat()))
+        await db.commit()
+
+
+async def remove_subscription(user_id: int, group: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM subscriptions WHERE user_id=? AND group_name=?",
+            (user_id, group))
+        await db.commit()
+
+
+async def user_subscriptions(user_id: int) -> list[str]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT group_name FROM subscriptions WHERE user_id=? ORDER BY group_name",
+            (user_id,)) as cur:
+            return [r[0] for r in await cur.fetchall()]
+
+
+async def subscribers_of_groups(groups: list[str]) -> dict[int, list[str]]:
+    """Возвращает {user_id: [совпавшие группы]}."""
+    if not groups:
+        return {}
+    async with aiosqlite.connect(DB_PATH) as db:
+        q = "SELECT user_id, group_name FROM subscriptions WHERE group_name IN ({})".format(
+            ",".join("?" * len(groups)))
+        result: dict[int, list[str]] = {}
+        async with db.execute(q, tuple(groups)) as cur:
+            for uid, g in await cur.fetchall():
+                result.setdefault(uid, []).append(g)
+        return result
+
+
+async def all_subscribed_groups() -> dict[str, int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT group_name, COUNT(*) FROM subscriptions GROUP BY group_name "
+            "ORDER BY COUNT(*) DESC") as cur:
+            return {g: c for g, c in await cur.fetchall()}
+
+
+# ---------- Снимки расписания ----------
+
+async def save_snapshot(content_hash: str, payload_json: str) -> None:
+    from datetime import datetime
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO schedule_snapshots (content_hash, payload, fetched_at)
+            VALUES (?,?,?)
+        """, (content_hash, payload_json, datetime.utcnow().isoformat()))
+        await db.commit()
+
+
+async def latest_snapshot() -> Optional[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM schedule_snapshots ORDER BY id DESC LIMIT 1") as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
 
 
 async def list_settings_prefix(prefix) -> list[tuple[str, str]]:
