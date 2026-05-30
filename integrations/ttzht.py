@@ -271,14 +271,72 @@ async def fetch_and_parse() -> tuple[Optional[list[ScheduleDay]], Optional[str]]
 # ------------------------------------------------------------------
 # Форматирование
 
+_EMPTY = {"", "-->", "—"}
+_TIME_RE = re.compile(r"^\d{1,2}[.:]\d{2}$")
+
+
+def _format_pair(pair: str) -> str:
+    """Возвращает оформленный префикс: «🕐 8:00» для времени, «3 пара» для номера."""
+    pair = (pair or "").strip()
+    if not pair:
+        return "•"
+    if _TIME_RE.match(pair):
+        # 8.00 / 9.00 / 11.00 / 13.00 / 12.30 → 8:00
+        norm = pair.replace(".", ":")
+        return f"🕐 <b>{norm}</b>"
+    # Опечатка вида «1.2» — это «1,2 пара»
+    clean = pair.replace(".", ",")
+    if "," in clean or "-" in clean:
+        return f"<b>{clean}</b> пары"
+    return f"<b>{clean}</b> пара"
+
+
+def _format_subject(text: str) -> str:
+    """Чуть аккуратнее оформляем некоторые ключевые случаи."""
+    t = text.strip()
+    low = t.lower()
+    if low.startswith("экзамен"):
+        return f"📝 {t}"
+    if low.startswith("сам. работа") or "сам. работа обуч" in low or low.startswith("сам.раб"):
+        return f"📚 {t}"
+    if "свободный день" in low:
+        return f"🎉 {t}"
+    if "по расписанию" in low:
+        return f"📅 {t}"
+    return t
+
+
 def _row_line(r: ReplaceRow) -> str:
-    """Одна строка замены — для сообщения в группе/личке."""
-    pair_part = f"<b>{r.pair}</b> пара" if r.pair else "•"
-    arrow = " → " if r.subject_old not in ("", "-->") else " "
-    old_part = "" if r.subject_old in ("", "-->") else f"{r.subject_old}"
-    new_part = r.subject_new
-    room = f", ауд. <b>{r.room}</b>" if r.room else ""
-    return f"▸ {pair_part}: {old_part}{arrow}{new_part}{room}".replace("  ", " ")
+    """Одна строка замены — оформляется с учётом частных случаев."""
+    pair = _format_pair(r.pair)
+    room = f"  📍 ауд. <b>{r.room}</b>" if r.room.strip() else ""
+    old = r.subject_old.strip()
+    new = r.subject_new.strip()
+
+    # Случай 1: «НЕТ» = пара отменена
+    if new.upper() == "НЕТ":
+        if old in _EMPTY:
+            return f"🚫 {pair}: <b>отменена</b>{room}"
+        return f"🚫 {pair}: <b>{old}</b> — отменена{room}"
+
+    # Случай 2: old заполнен, new пустой = возвращается к расписанию
+    if old not in _EMPTY and new in _EMPTY:
+        return f"♻️ {pair}: <b>{old}</b> — по расписанию{room}"
+
+    # Случай 3: old пустой, new заполнен = добавлена пара
+    if old in _EMPTY and new not in _EMPTY:
+        return f"➕ {pair}: <b>{_format_subject(new)}</b>{room}"
+
+    # Случай 4: классическая замена old → new
+    return f"🔁 {pair}: <s>{old}</s> → <b>{_format_subject(new)}</b>{room}"
+
+
+def _day_header(date_text: str, group: Optional[str] = None) -> str:
+    base = f"📅 <b>{date_text}</b>"
+    if group:
+        base += f"\n👥 Группа <b>{group}</b>"
+    base += "\n━━━━━━━━━━━━━━━"
+    return base
 
 
 def render_for_group(days: list[ScheduleDay], group: str) -> Optional[str]:
@@ -288,7 +346,7 @@ def render_for_group(days: list[ScheduleDay], group: str) -> Optional[str]:
         affecting = [r for r in d.rows if r.affects(group)]
         if not affecting:
             continue
-        lines = [f"📅 <b>Замены на {d.date_text}</b>", f"👥 Группа <b>{group}</b>", ""]
+        lines = [_day_header(d.date_text, group), ""]
         for r in affecting:
             lines.append(_row_line(r))
         chunks.append("\n".join(lines))
@@ -298,13 +356,25 @@ def render_for_group(days: list[ScheduleDay], group: str) -> Optional[str]:
 
 
 def render_full(days: list[ScheduleDay], limit_rows: int = 200) -> str:
-    """Полное расписание (для админ-проверки / общей публикации)."""
+    """Полное расписание (для админ-проверки / общей публикации).
+    Группирует строки по группам для компактности."""
     chunks = []
     for d in days:
-        lines = [f"📅 <b>Замены на {d.date_text}</b>", ""]
+        # Сгруппируем по «ключу групп» (та же комбинация групп)
+        groups_order: list[tuple[str, list[ReplaceRow]]] = []
+        last_key = None
         for r in d.rows[:limit_rows]:
-            grp = ", ".join(r.groups)
-            lines.append(f"<b>{grp}</b> · {_row_line(r)}")
+            key = ", ".join(r.groups)
+            if key != last_key:
+                groups_order.append((key, []))
+                last_key = key
+            groups_order[-1][1].append(r)
+
+        lines = [_day_header(d.date_text)]
+        for key, rows in groups_order:
+            lines.append(f"\n👥 <b>{key}</b>")
+            for r in rows:
+                lines.append(_row_line(r))
         chunks.append("\n".join(lines))
     return "\n\n".join(chunks) if chunks else "<i>Замен нет.</i>"
 
@@ -316,3 +386,21 @@ def affected_groups_summary(days: list[ScheduleDay]) -> str:
         groups = sorted({g for r in d.rows for g in r.groups})
         parts.append(f"📅 <b>{d.date_text}</b> — затронуто групп: <b>{len(groups)}</b>")
     return "\n".join(parts) if parts else "Изменений нет."
+
+
+def fetched_age_text(fetched_iso: str) -> str:
+    """«5 мин назад» / «2 ч назад» для отметки времени снимка."""
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(fetched_iso.replace("Z", ""))
+        now = datetime.utcnow()
+        delta = (now - dt).total_seconds()
+    except Exception:
+        return fetched_iso
+    if delta < 60:
+        return "только что"
+    if delta < 3600:
+        return f"{int(delta // 60)} мин назад"
+    if delta < 86400:
+        return f"{int(delta // 3600)} ч назад"
+    return f"{int(delta // 86400)} дн назад"

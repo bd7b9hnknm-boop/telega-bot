@@ -11,7 +11,10 @@ from database import (
 from utils.i18n import t, get_text
 from keyboards.inline import schedule_root, schedule_my, schedule_cancel, main_menu
 from states.order import GroupSub
-from integrations.ttzht import from_json, render_for_group, render_full, fetch_and_parse, content_hash, to_json
+from integrations.ttzht import (
+    from_json, render_for_group, render_full,
+    fetch_and_parse, content_hash, to_json, fetched_age_text,
+)
 from database import save_snapshot
 
 router = Router()
@@ -104,16 +107,16 @@ async def sched_add_save(message: Message, state: FSMContext, db_user=None):
 
 async def _ensure_snapshot():
     """Если в БД нет снимка — пробуем прямо сейчас сходить на сайт.
-    Возвращает (days, error)."""
+    Возвращает (days, fetched_at_iso|None, error|None)."""
     snap = await latest_snapshot()
     if snap:
-        return from_json(snap["payload"]), None
+        return from_json(snap["payload"]), snap["fetched_at"], None
     days, err = await fetch_and_parse()
     if days is None:
-        return None, err
-    # Сохраним сразу — чтобы при следующих заходах всё было быстро
+        return None, None, err
     await save_snapshot(content_hash(days), to_json(days))
-    return days, None
+    snap = await latest_snapshot()
+    return days, snap["fetched_at"] if snap else None, None
 
 
 @router.callback_query(F.data == "sched:today")
@@ -121,7 +124,7 @@ async def sched_today(call: CallbackQuery, db_user=None):
     db_user = db_user or await get_user(call.from_user.id)
     lang = _lang(db_user)
 
-    days, err = await _ensure_snapshot()
+    days, fetched_at, err = await _ensure_snapshot()
     if days is None:
         await call.message.edit_text(
             f"⚠️ Не удалось получить страницу замен (<code>{err}</code>). "
@@ -131,32 +134,31 @@ async def sched_today(call: CallbackQuery, db_user=None):
 
     groups = await user_subscriptions(call.from_user.id)
     full_text = render_full(days, limit_rows=80)
+    age = fetched_age_text(fetched_at) if fetched_at else "—"
+    footer = f"\n\n<i>🔄 Обновлено: {age}.  Источник: ttgdt.stu.ru/students/zam</i>"
 
     if not groups:
-        # Подписок нет — показываем всё, что есть на сайте
         text = (
             "<b>📋 Замены сейчас</b>\n\n"
-            "<i>Вы пока не подписаны на группу. Ниже — полный список замен.</i>\n\n"
+            "<i>Вы не подписаны на группу — показан полный список.</i>\n\n"
             + full_text
         )
     else:
-        # Есть подписки — фильтруем под них
         personal = []
         for g in groups:
             s = render_for_group(days, g)
             if s:
                 personal.append(s)
         if personal:
-            text = "\n\n———\n\n".join(personal)
+            text = "\n\n".join(personal)
         else:
-            # Подписки есть, но именно сегодняшние замены их не касаются —
-            # покажем полный список, как fallback
             text = (
-                "📅 <b>Для ваших групп изменений нет.</b>\n\n"
-                "<i>Полный список замен на сегодня/завтра:</i>\n\n"
+                "<b>📋 Для ваших групп изменений нет.</b>\n\n"
+                "<i>Полный список:</i>\n\n"
                 + full_text
             )
 
+    text += footer
     if len(text) > 3800:
         text = text[:3800] + "\n\n<i>…сокращено. Полная версия — на сайте ТТЖТ.</i>"
     try:

@@ -49,6 +49,7 @@ async def _broadcast_changes(bot: Bot, days):
     # Личные уведомления
     subs_map = await subscribers_of_groups(all_groups)
     sent_user = 0
+    intro = "🔔 <b>Появились свежие замены</b>\n\n"
     for user_id in subs_map:
         groups = await user_subscriptions(user_id)
         chunks = []
@@ -58,7 +59,7 @@ async def _broadcast_changes(bot: Bot, days):
                 chunks.append(piece)
         if not chunks:
             continue
-        text = "\n\n———\n\n".join(chunks)
+        text = intro + "\n\n".join(chunks)
         if len(text) > 3800:
             text = text[:3800] + "\n\n<i>…сокращено</i>"
         try:
