@@ -16,6 +16,18 @@ from keyboards.inline import (
 router = Router()
 
 
+async def _is_blocked_with_pending(message: Message, db_user=None) -> bool:
+    """Фильтр: пропускаем хендлер ТОЛЬКО для заблокированных, кто нажал
+    «Написать в поддержку». Для всех остальных — следующий хендлер."""
+    if db_user is None:
+        db_user = await get_user(message.from_user.id)
+    return bool(
+        db_user
+        and db_user.get("is_blocked")
+        and db_user.get("support_pending")
+    )
+
+
 def _lang(db_user) -> str:
     return (db_user and db_user.get("language")) or "ru"
 
@@ -50,14 +62,11 @@ async def bsup_cancel(call: CallbackQuery, db_user=None):
     await call.answer(t("blocked_support_cancel", lang))
 
 
-@router.message(F.text)
+@router.message(F.text, _is_blocked_with_pending)
 async def bsup_relay(message: Message, bot: Bot, db_user=None):
-    """Пользователь — заблокированный, с флагом support_pending=1.
-    Middleware пропустил сюда. Шлём админу карточку."""
+    """Сюда попадают только заблокированные с support_pending=1
+    (благодаря фильтру выше). Шлём админу карточку."""
     db_user = db_user or await get_user(message.from_user.id)
-    if not (db_user and db_user.get("is_blocked") and db_user.get("support_pending")):
-        return  # на всякий случай — не наш случай
-
     lang = _lang(db_user)
     user = message.from_user
     uname = f"@{user.username}" if user.username else "—"
